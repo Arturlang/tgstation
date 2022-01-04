@@ -571,10 +571,13 @@
 	. = ..()
 	on_emag(src, user, emag_card)
 
-/obj/item/mod/module/dna_lock/proc/dna_check()
-	if(!dna || (mod.wearer.has_dna() && mod.wearer.dna.unique_enzymes == dna))
+/obj/item/mod/module/dna_lock/proc/dna_check(mob/user)
+	if(!user && !iscarbon(user))
+		return FALSE
+	var/mob/living/carbon/C = user
+	if(!dna  || (C.has_dna() && C.dna.unique_enzymes == dna))
 		return TRUE
-	balloon_alert(mod.wearer, "dna locked!")
+	balloon_alert(user, "dna locked!")
 	return FALSE
 
 /obj/item/mod/module/dna_lock/proc/on_emp(datum/source, severity)
@@ -587,16 +590,16 @@
 
 	dna = null
 
-/obj/item/mod/module/dna_lock/proc/on_mod_activation(datum/source)
+/obj/item/mod/module/dna_lock/proc/on_mod_activation(datum/source, mob/user)
 	SIGNAL_HANDLER
 
-	if(!dna_check())
+	if(!dna_check(user))
 		return MOD_CANCEL_ACTIVATE
 
-/obj/item/mod/module/dna_lock/proc/on_mod_removal(datum/source)
+/obj/item/mod/module/dna_lock/proc/on_mod_removal(datum/source, mob/user)
 	SIGNAL_HANDLER
 
-	if(!dna_check())
+	if(!dna_check(user))
 		return MOD_CANCEL_REMOVAL
 
 //Plasma Stabilizer
