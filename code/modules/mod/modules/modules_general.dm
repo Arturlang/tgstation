@@ -572,10 +572,10 @@
 	on_emag(src, user, emag_card)
 
 /obj/item/mod/module/dna_lock/proc/dna_check(mob/user)
-	if(!user && !iscarbon(user))
+	if(!iscarbon(user))
 		return FALSE
-	var/mob/living/carbon/C = user
-	if(!dna  || (C.has_dna() && C.dna.unique_enzymes == dna))
+	var/mob/living/carbon/carbon_user = user
+	if(!dna  || (carbon_user.has_dna() && carbon_user.dna.unique_enzymes == dna))
 		return TRUE
 	balloon_alert(user, "dna locked!")
 	return FALSE
