@@ -1,64 +1,69 @@
 
-/obj/item/gun/ballistic/gauss_rifle
+/obj/item/gun/energy/gauss_rifle
 	name = "Raijin Horizon Gauss Rifle"
 	desc = "The Raijin is a gauss type weapon designed more for utility and subterfuge rather than protracted combat engagements. \n\
-		Scoped and suppressed. Chambered in 2mm FM (ferromagnetic), \n\
-		the weapon is slow to fire but fires a high velocity, high impact, high penetration round. \n\
-		Has an implant restricted firing pin similar to nuclear operatives, and can only be fired by users with the Cybersun authorization implant. \n\
-		This implant is injected upon picking up the gun for the first time. \n\
-		The case contains the gun, and comes with a number of customizable magazines. \n\
-		A magazine can be swapped to a different ammunition type before being inserted into the gun. \n\
-		Each projectile type expends more 'ammunition' from the magazine, which acts more like a battery than a traditional magazine. \n\
-		Recharging these magazines requires either using a recharger, or the weapon case that came with the gun."
+		Scoped and suppressed. Chambered in 2mm FM (ferromagnetic)."
 	icon = 'code/modules/antagonists/traitor/contractor/icons/contractor_gun_item.dmi'
 	lefthand_file = 'code/modules/antagonists/traitor/contractor/icons/contractor_gun_inhand_left.dmi'
 	righthand_file = 'code/modules/antagonists/traitor/contractor/icons/contractor_gun_inhand_right.dmi'
-	icon_state = "contractor_gun"
-	inhand_icon_state = "contractor_gun"
 	base_icon_state = "contractor_gun"
+	icon_state = "contractor_gun_standard"
+	inhand_icon_state = "contractor_gun_standard"
 	weapon_weight = WEAPON_HEAVY
-	accepted_magazine_type = /obj/item/ammo_box/magazine/gauss
 	w_class = WEIGHT_CLASS_BULKY
-	bolt_type = BOLT_TYPE_OPEN
-	SET_BASE_PIXEL(-16, 0)
-	var/fire_mode_switch_sound = SFX_FIRE_MODE_SWITCH
-	var/ammo_mode = 0
-	var/ammo_type = list(
-		/obj/item/ammo_casing/gauss,
-		/obj/item/ammo_casing/gauss/emp,
-		/obj/item/ammo_casing/gauss/gyro,
-		/obj/item/ammo_casing/gauss/antimatter,
-		/obj/item/ammo_casing/gauss/thermite,
+	// SET_BASE_PIXEL(-16, 0)
+	fire_mode_switch_sound = SFX_FIRE_MODE_SWITCH
+	automatic_charge_overlays = FALSE
+	ammo_type = list(
+		/obj/item/ammo_casing/energy/gauss,
+		/obj/item/ammo_casing/energy/gauss/emp,
+		/obj/item/ammo_casing/energy/gauss/gyro,
+		/obj/item/ammo_casing/energy/gauss/antimatter,
+		/obj/item/ammo_casing/energy/gauss/thermite,
 	)
 
-/obj/item/gun/ballistic/gauss_rifle/Initialize(mapload)
+/obj/item/gun/energy/gauss_rifle/Initialize(mapload)
 	. = ..()
-	AddElement(/datum/element/update_icon_updates_onmob)
+	var/matrix/offset = matrix()
+	offset.Translate(-16, 0)
+	transform = offset
 
-/obj/item/gun/ballistic/gauss_rifle/attack_self(mob/living/user)
-	if(length(ammo_type) > 1)
-		select_fire(user)
+/obj/item/gun/energy/gauss_rifle/examine_more(mob/user)
+	. = ..()
+	. += "The Raijin Horizon Gauss Rifle is slow to fire but fires a high velocity, high impact, high penetration round."
+	. += "Has an implant restricted firing pin similar to nuclear operatives, and can only be fired by users with the Cybersun authorization implant. "
+	. += "This implant is injected upon picking up the gun for the first time."
+	. += "The case contains the gun, and comes with a number of customizable magazines."
+	. += "A magazine can be swapped to a different ammunition type before being inserted into the gun."
+	. += "Each projectile type expends more 'ammunition' from the magazine, which acts more like a battery than a traditional magazine."
+	. += "Recharging these magazines requires either using a recharger, or the weapon case that came with the gun."
+
+/obj/item/gun/energy/gauss_rifle/update_icon_state()
+	. = ..()
+	icon_state = "[base_icon_state]_[current_state()]"
+	inhand_icon_state = "[base_icon_state]_[current_state()]"
+
+/obj/item/gun/energy/gauss_rifle/update_overlays()
+	. = ..()
+	var/emissive_icon = "contractor_gun_light_[current_state()]"
+	. += emissive_appearance(icon, emissive_icon, src)
+
+/obj/item/gun/energy/gauss_rifle/worn_overlays(mutable_appearance/standing, isinhands, icon_file)
+	. = ..()
+	if(!isinhands)
 		return
+	var/emissive_icon = "contractor_gun_light_[current_state()]"
+	. += emissive_appearance(icon_file, emissive_icon, src)
 
-/obj/item/gun/ballistic/gauss_rifle/proc/select_fire(mob/living/user)
-	ammo_mode++
-	if (ammo_mode > length(ammo_type))
-		ammo_mode = 1
-	var/obj/item/ammo_casing/gauss/shot = ammo_type[ammo_mode]
-	if(!isnull(shot) && !ispath(shot))
-		CRASH("Invalid ammo type in gauss rifle: " + shot.type)
-	fire_sound = shot.fire_sound
-	fire_delay = shot.delay
-	if (shot.select_name && user)
-		balloon_alert(user, "set to [shot.select_name]")
-	chambered = null
-	recharge_newshot(TRUE)
-	update_appearance()
-	if(fire_mode_switch_sound)
-		playsound(src, fire_mode_switch_sound, 50, TRUE)
+/obj/item/gun/energy/gauss_rifle/proc/current_state()
+	var/ratio = get_charge_ratio()
+	var/obj/item/ammo_casing/energy/gauss/gauss_chamber = astype(chambered)
+	if(ratio == 0 || isnull(gauss_chamber))
+		return "empty"
+	return gauss_chamber.select_name
 
-/obj/item/gun/ballistic/gauss_rifle/balloon_alert_pixel_y_offset()
-	return 0
+// /obj/item/gun/energy/gauss_rifle/balloon_alert_pixel_y_offset()
+// 	return 0
 
 /obj/item/ammo_box/magazine/gauss
 	name = "Raijin Horizon Gauss Magazine"
@@ -67,29 +72,29 @@
 	caliber = CALIBER_GAUSS
 	max_ammo = 5
 	icon_state = ".50mag"
-	ammo_type = /obj/item/ammo_casing/gauss
+	ammo_type = /obj/item/ammo_casing/energy/gauss
 
 /obj/item/ammo_box/magazine/gauss/emp
 	name = "Raijin Horizon Smart EMP Gauss Magazine"
 	color = COLOR_BLUE
-	ammo_type = /obj/item/ammo_casing/gauss/emp
+	ammo_type = /obj/item/ammo_casing/energy/gauss/emp
 
 /obj/item/ammo_box/magazine/gauss/gyro
 	name = "Raijin Horizon Gyre Gauss Magazine"
 	color = COLOR_YELLOW
-	ammo_type = /obj/item/ammo_casing/gauss/gyro
+	ammo_type = /obj/item/ammo_casing/energy/gauss/gyro
 
 /obj/item/ammo_box/magazine/gauss/antimatter
 	name = "Raijin Horizon Antimatter Gauss Magazine"
 	color = COLOR_PURPLE
-	ammo_type = /obj/item/ammo_casing/gauss/antimatter
+	ammo_type = /obj/item/ammo_casing/energy/gauss/antimatter
 
 /obj/item/ammo_box/magazine/gauss/thermite
 	name = "Raijin Horizon Red Sun Gauss Magazine"
 	color = COLOR_RED
-	ammo_type = /obj/item/ammo_casing/gauss/thermite
+	ammo_type = /obj/item/ammo_casing/energy/gauss/thermite
 
-/obj/item/ammo_casing/gauss
+/obj/item/ammo_casing/energy/gauss
 	name = "standard gauss round"
 	desc = "This magazine flash-fabricates microcartridge assemblies through self-replicating nanites. \n\
 		These assemblies self-destructively supercharge the rail capacitors used in gauss weaponry. \n\
@@ -99,9 +104,9 @@
 	icon_state = "standard"
 	caliber = CALIBER_GAUSS
 	projectile_type = /obj/projectile/bullet/gauss
-	var/select_name = "standard"
+	select_name = "standard"
 
-/obj/item/ammo_casing/gauss/emp
+/obj/item/ammo_casing/energy/gauss/emp
 	name = "smart EMP gauss round"
 	desc = "This magazine flash-fabricates microcartridge assemblies through self-replicating nanites. \n\
 		These assemblies self-destructively supercharge the rail capacitors used in gauss weaponry. \n\
@@ -114,7 +119,7 @@
 	projectile_type = /obj/projectile/bullet/gauss/emp
 	select_name = "smart EMP"
 
-/obj/item/ammo_casing/gauss/gyro
+/obj/item/ammo_casing/energy/gauss/gyro
 	name = "gyre gauss round"
 	desc = "This magazine flash-fabricates microcartridge assemblies through self-replicating nanites. \n\
 		These assemblies self-destructively supercharge the rail capacitors used in gauss weaponry. \n\
@@ -128,7 +133,7 @@
 	projectile_type = /obj/projectile/bullet/gauss/gyro
 	select_name = "gyre"
 
-/obj/item/ammo_casing/gauss/antimatter
+/obj/item/ammo_casing/energy/gauss/antimatter
 	name = "antimatter gauss round"
 	desc = "This magazine flash-fabricates microcartridge assemblies through self-replicating nanites. \n\
 		These assemblies self-destructively supercharge the rail capacitors used in gauss weaponry. \n\
@@ -141,7 +146,7 @@
 	projectile_type = /obj/projectile/bullet/gauss/antimatter
 	select_name = "antimatter"
 
-/obj/item/ammo_casing/gauss/thermite
+/obj/item/ammo_casing/energy/gauss/thermite
 	name = "red sun gauss round"
 	desc = "This magazine flash-fabricates microcartridge assemblies through self-replicating nanites. \n\
 		These assemblies self-destructively supercharge the rail capacitors used in gauss weaponry. \n\
@@ -166,7 +171,7 @@
 /obj/projectile/bullet/gauss/emp
 	name = "smart EMP gauss round"
 	icon_state = "emp_projectile"
-	damage = 0
+	damage = 15
 	speed = 3
 	wound_bonus = CANT_WOUND
 	sharpness = NONE
@@ -213,6 +218,13 @@
 	speed = 3
 	wound_bonus = 40
 	embed_type = null
+
+/obj/projectile/bullet/gauss/antimatter/on_hit(atom/target, blocked, pierce_hit)
+	. = ..()
+	for(var/mob/living/living_mob in get_hearers_in_view(3, get_turf(target)))
+		to_chat(living_mob, span_userdanger("A flash of light erupts from the impact of the round, blinding you!"), MSG_AUDIBLE)
+		living_mob.flash_act(2)
+		living_mob.soundbang_act(1 SECONDS)
 
 /obj/projectile/bullet/gauss/thermite
 	name = "red sun gauss round"
