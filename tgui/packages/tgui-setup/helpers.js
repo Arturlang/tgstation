@@ -178,7 +178,23 @@
     }
   };
 
-  Byond.sendMessage = function (type, payload) {
+  // Lightweight logger that bypasses sendMessage internals.
+  // Useful when debugging sendMessage itself.
+  Byond.tguiLog = function (ns, message) {
+    if (!isByond) {
+      return false;
+    }
+    Byond.topic({
+      tgui: 1,
+      window_id: Byond.windowId,
+      type: 'log',
+      ns: ns,
+      message: message,
+    });
+    return true;
+  };
+
+  Byond.sendMessage = function (type, payload, awaitResponse) {
     var message =
       typeof type === 'string' ? { type: type, payload: payload } : type;
     // JSON-encode the payload
@@ -190,7 +206,22 @@
       tgui: 1,
       window_id: Byond.windowId,
     });
+    // Return false if not running in BYOND so callers can detect no-ops.
+    if (!isByond) {
+      return false;
+    }
+    // Keep compatibility for clients without Promise support.
+    // Async acknowledgements are opt-in to avoid breaking bootstrap paths.
+    if (awaitResponse) {
+      if (!window.Promise) {
+        Byond.tguiLog('send', 'awaitResponse requested but Promise is unavailable; using fire-and-forget');
+        Byond.topic(message);
+        return true;
+      }
+      return Byond.callAsync('', message);
+    }
     Byond.topic(message);
+    return true;
   };
 
   // This function exists purely for debugging, do not use it in code!
@@ -261,12 +292,21 @@
           "' after several attempts.";
         if (type === 'css') {
           errorMessage +=
-            +'\nStylesheet was either not found, ' +
+            '\nStylesheet was either not found, ' +
             "or you're trying to load an empty stylesheet " +
             'that has no CSS rules in it.';
         }
+        Byond.sendMessage('asset/failed', { url: url });
+        Byond.tguiLog(
+          'asset',
+          'asset failed after retries; type=' + type + '; url=' + url
+        );
         throw new Error(errorMessage);
       }
+      Byond.tguiLog(
+        'asset',
+        'asset retry ' + (attempt + 1) + '/' + RETRY_ATTEMPTS + '; type=' + type + '; url=' + url
+      );
       setTimeout(
         function () {
           loadedAssetByUrl[url] = null;
@@ -287,8 +327,13 @@
       } else {
         node.async = true;
       }
+      node.onload = function () {
+        node.onload = null;
+        Byond.sendMessage('asset/received', { url: url });
+      };
       node.onerror = function () {
         node.onerror = null;
+        node.onload = null;
         node.parentNode.removeChild(node);
         node = null;
         retry();
@@ -325,6 +370,7 @@
         if (isStyleSheetLoaded(node, url)) {
           // Render the stylesheet
           node.media = 'all';
+          Byond.sendMessage('asset/received', { url: url });
           return;
         }
         removeNodeAndRetry();

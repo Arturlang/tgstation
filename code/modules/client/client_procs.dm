@@ -84,8 +84,11 @@ GLOBAL_LIST_INIT(unrecommended_builds, list(
 			return
 
 	// Tgui Topic middleware
-	if(tgui_Topic(href_list))
-		return
+	// Propagate the return value so BYOND delivers it to any JS callback
+	// attached by Byond.callAsync (used by Byond.sendMessage).
+	var/tgui_topic_result = tgui_Topic(href_list)
+	if(tgui_topic_result)
+		return tgui_topic_result
 	if(href_list["reload_tguipanel"])
 		nuke_chat()
 	if(href_list["reload_statbrowser"])

@@ -12,6 +12,8 @@
 	var/datum/tgui_window/window
 	var/broken = FALSE
 	var/initialized_at
+	/// Monotonic counter to distinguish overlapping initialize attempts.
+	var/initialize_generation = 0
 	/// Each client notifies on protected playback, so this prevents spamming admins.
 	var/static/admins_warned = FALSE
 
@@ -42,19 +44,44 @@
 	set waitfor = FALSE
 	// Minimal sleep to defer initialization to after client constructor
 	sleep(1 TICKS)
+	initialize_generation++
+	var/current_generation = initialize_generation
+	broken = FALSE
 	initialized_at = world.time
+	log_tgui(client,
+		"tgui_panel initialize start (generation [current_generation])",
+		context = "[window?.id]/panel_initialize_start",
+		window = window)
 	// Perform a clean initialization
 	window.initialize(
 		strict_mode = TRUE,
 		assets = list(
 			get_asset_datum(/datum/asset/simple/tgui_panel),
 		))
-	window.send_asset(get_asset_datum(/datum/asset/simple/namespaced/fontawesome))
-	window.send_asset(get_asset_datum(/datum/asset/simple/namespaced/tgfont))
-	window.send_asset(get_asset_datum(/datum/asset/spritesheet_batched/chat))
+	var/flush_queue = FALSE
+	flush_queue |= window.send_asset(get_asset_datum(/datum/asset/simple/namespaced/fontawesome))
+	flush_queue |= window.send_asset(get_asset_datum(/datum/asset/simple/namespaced/tgfont))
+	flush_queue |= window.send_asset(get_asset_datum(/datum/asset/spritesheet_batched/chat))
+	if(flush_queue)
+		var/flush_confirmed = client?.browse_queue_flush()
+		if(!flush_confirmed)
+			log_tgui(client,
+				"tgui_panel asset queue flush was not confirmed before timeout",
+				context = "[window?.id]/panel_asset_flush_timeout",
+				window = window)
+		else
+			log_tgui(client,
+				"tgui_panel asset queue flush confirmed",
+				context = "[window?.id]/panel_asset_flush_ok",
+				window = window)
+	else
+		log_tgui(client,
+			"tgui_panel had no pending asset sends to flush",
+			context = "[window?.id]/panel_asset_flush_skipped",
+			window = window)
 	// Other setup
 	request_telemetry()
-	addtimer(CALLBACK(src, PROC_REF(on_initialize_timed_out)), 5 SECONDS)
+	addtimer(CALLBACK(src, PROC_REF(on_initialize_timed_out), current_generation), 10 SECONDS)
 	window.send_message("testTelemetryCommand")
 
 /**
@@ -62,7 +89,20 @@
  *
  * Called when initialization has timed out.
  */
-/datum/tgui_panel/proc/on_initialize_timed_out()
+/datum/tgui_panel/proc/on_initialize_timed_out(generation)
+	if(generation != initialize_generation)
+		return
+	if(window?.is_ready())
+		log_tgui(client,
+			"tgui_panel timeout callback ignored because window is already ready",
+			context = "[window?.id]/timeout_ignored",
+			window = window)
+		return
+	broken = TRUE
+	log_tgui(client,
+		"tgui_panel initialization timed out",
+		context = "[window?.id]/timeout",
+		window = window)
 	// Currently does nothing but sending a message to old chat.
 	SEND_TEXT(client, span_userdanger("Failed to load fancy chat, click <a href='byond://?src=[REF(src)];reload_tguipanel=1'>HERE</a> to attempt to reload it."))
 
@@ -73,6 +113,10 @@
  */
 /datum/tgui_panel/proc/on_message(type, payload)
 	if(type == "ready")
+		log_tgui(client,
+			"tgui_panel received ready",
+			context = "[window?.id]/panel_ready",
+			window = window)
 		broken = FALSE
 		window.send_message("update", list(
 			"config" = list(

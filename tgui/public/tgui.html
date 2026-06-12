@@ -55,8 +55,62 @@ o8o        `8    "888"  `Y8bood8P'  8""88888P'
     </noscript>
 
     <script>
-      // Signal tgui that we're ready to receive updates
-      Byond.sendMessage('ready');
+      // Signal tgui that we're ready to receive updates.
+      // Includes a fallback path if helpers failed to initialize window.Byond.
+      (function () {
+        var meta = document.getElementById('tgui:windowId');
+        var windowId = meta && meta.getAttribute('content');
+
+        var sendFallback = function (type, extras) {
+          var params = [
+            'tgui=1',
+            'window_id=' + encodeURIComponent(windowId || ''),
+            'type=' + encodeURIComponent(type),
+          ];
+          if (extras) {
+            for (var key in extras) {
+              if (Object.prototype.hasOwnProperty.call(extras, key)) {
+                params.push(
+                  encodeURIComponent(key) + '=' + encodeURIComponent(extras[key])
+                );
+              }
+            }
+          }
+          var uri = 'byond://?' + params.join('&');
+          if (window.cef_to_byond) {
+            cef_to_byond(uri);
+          } else {
+            location.href = uri;
+          }
+        };
+
+        try {
+          if (typeof Byond !== 'undefined' && Byond.sendMessage) {
+            if (Byond.tguiLog) {
+              Byond.tguiLog('bootstrap', 'about to send ready');
+            }
+            Byond.sendMessage('ready');
+            if (Byond.tguiLog) {
+              Byond.tguiLog('bootstrap', 'ready sent');
+            }
+            return;
+          }
+
+          sendFallback('log', {
+            ns: 'bootstrap',
+            message: 'Byond object missing; using fallback ready sender',
+          });
+          sendFallback('ready');
+        } catch (error) {
+          sendFallback('log', {
+            ns: 'bootstrap',
+            message:
+              'ready send exception; using fallback: ' +
+              (error && error.message ? error.message : error),
+          });
+          sendFallback('ready');
+        }
+      })();
     </script>
   </body>
 </html>

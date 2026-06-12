@@ -765,6 +765,42 @@ ADMIN_VERB(clear_smart_asset_cache, R_DEBUG, "Clear Smart Asset Cache", "Clear t
 		cleared++
 	to_chat(user, span_notice("Cleared [cleared] asset\s."))
 
+/// Opens the marked datum's ui_interact tgui window on the invoking admin's mob.
+ADMIN_VERB(open_tgui_on_marked, R_DEBUG, "Open TGUI On Marked", "Open the marked datum's tgui on the invoking admin.", ADMIN_CATEGORY_DEBUG)
+	var/datum/target = user.holder.marked_datum
+	if(QDELETED(target))
+		to_chat(user, span_warning("No valid marked datum. Mark a datum with VV first."), confidential = TRUE)
+		return
+	var/mob/opening_mob = user.mob
+	if(QDELETED(opening_mob) || !opening_mob.client)
+		to_chat(user, span_warning("You need to be controlling a mob with a client to open this UI."), confidential = TRUE)
+		return
+
+	var/count = tgui_input_number(
+		user,
+		"How many windows would you like to open for [target] ([target.type])?",
+		"Open TGUI Windows",
+		default = 1,
+		min_value = 1,
+		max_value = 10,
+	)
+	if(isnull(count))
+		return
+
+	var/opened = 0
+	for(var/i in 1 to count)
+		if(QDELETED(target))
+			to_chat(user, span_warning("Marked datum was deleted mid-loop, stopping."), confidential = TRUE)
+			break
+		target.ui_interact(opening_mob)
+		opened++
+
+	log_admin("[key_name(user)] opened tgui ([target.type]) [opened] time\s on themselves")
+	message_admins("[key_name_admin(user)] opened tgui ([target.type]) [opened] time\s on themselves")
+
+	to_chat(user, span_notice("Opened [opened] tgui window\s for [target] ([target.type])."), confidential = TRUE)
+	BLACKBOX_LOG_ADMIN_VERB("Open TGUI On Marked")
+
 ADMIN_VERB(give_ai_speech, R_FUN, "Give Random AI Speech", ADMIN_VERB_NO_DESCRIPTION, ADMIN_CATEGORY_HIDDEN, mob/living/my_guy)
 	if (isnull(my_guy.ai_controller))
 		var/create_controller = tgui_alert(user, "Target has no AI controller, add one?", "Give AI?", list("Yes", "No")) == "Yes"

@@ -330,6 +330,11 @@
  * Callback for handling incoming tgui messages.
  */
 /datum/tgui_window/proc/on_message(type, payload, href_list)
+	if(type == "ready")
+		log_tgui(client,
+			"Window reported ready",
+			context = "[id]/ready",
+			window = src)
 	// Status can be READY if user has refreshed the window.
 	if(type == "ready" && status == TGUI_WINDOW_READY)
 		// Resend the assets
@@ -385,6 +390,34 @@
 			var/payload_id = payload["id"]
 			append_payload_chunk(payload_id, payload["chunk"])
 			send_message("acknowledgePayloadChunk", list("id" = payload_id))
+		if("asset/received")
+			// Client confirmed an asset successfully loaded; no action needed.
+			return
+		if("asset/failed")
+			// Client exhausted retries for an asset. Clear it from the server-side
+			// sent-assets record so the next send_asset() call forces a fresh browse_rsc,
+			// then resend the affected asset datum.
+			if(!payload || !client)
+				return
+			var/failed_url = payload["url"]
+			if(!failed_url)
+				return
+			log_tgui(client,
+				"Asset failed to load on client after all retries: [failed_url]",
+				context = "[id]/asset_failed",
+				window = src)
+			// Derive the bare filename from the URL (last path segment) and
+			// drop it from client.sent_assets so the transport will re-send it.
+			var/asset_filename = copytext(failed_url, findlasttext(failed_url, "/") + 1)
+			if(asset_filename)
+				client.sent_assets -= asset_filename
+			// Find the matching asset datum and resend it.
+			for(var/datum/asset/asset in sent_assets)
+				var/list/mappings = asset.get_url_mappings()
+				for(var/name in mappings)
+					if(mappings[name] == failed_url)
+						send_asset(asset)
+						return
 
 /datum/tgui_window/vv_edit_var(var_name, var_value)
 	return var_name != NAMEOF(src, id) && ..()
